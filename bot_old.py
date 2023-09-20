@@ -9,13 +9,13 @@ from model import summery_gen
 
 
 # Параметры Telethon
-api_id = '25651742'
-api_hash = 'e6947035583af4601a19198d41ed0b93'
-phone = '+995592157452'
+api_id = 'X'
+api_hash = 'X'
+phone = '+X'
 client = TelegramClient(phone, api_id, api_hash)
 
 # Параметры aiogram
-API_TOKEN = '6370076869:AAGHr_0IK8hzwBmgbBr3FjNGkvvWa3R2BGI'
+API_TOKEN = 'X:X'
 bot = Bot(token=API_TOKEN)
 # router = Router()
 dp = Dispatcher()
