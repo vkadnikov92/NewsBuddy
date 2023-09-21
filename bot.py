@@ -83,30 +83,9 @@ async def save_channel_link(message: types.Message):
     
     await message.reply("Новостая ссылка успешно сохранена в базу.", parse_mode='Markdown')
 
-    # existing_links = []
-    # try:
-    #     with open('user_channels.csv', 'r', newline='', encoding='utf-8') as csv_file:
-    #         reader = csv.DictReader(csv_file)
-    #         for row in reader:
-    #             if row['user_id'] == str(user_id):
-    #                 existing_links.append(row['channel_link'])
-    # except FileNotFoundError:
-    #     pass  # Файл еще не создан
-
-    # if channel_link not in existing_links:
-    #     with open('user_channels.csv', 'a', newline='', encoding='utf-8') as csv_file:
-    #         fieldnames = ['user_id', 'channel_link']
-    #         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-    #         if csv_file.tell() == 0:
-    #             writer.writeheader()
-    #         writer.writerow({
-    #             'user_id': user_id,
-    #             'channel_link': channel_link
-    #         })
-    # await message.reply("Новостая ссылка успешно сохранена в базу.", parse_mode='Markdown')
-
 # функция-парсинга и сохранения новостей по заранее сохраненным ссылкам от пользователя
 async def save_news(client, channel_link, user_id):
+    # print(f"save_news called with {channel_link} and {user_id}") # для отладки
     yesterday = datetime.utcnow() - timedelta(days=1)
     entity = await client.get_entity(channel_link)
 
@@ -145,29 +124,10 @@ async def save_news(client, channel_link, user_id):
                             'publication_date': msg_date.strftime('%Y-%m-%d %H:%M:%S')
                         })
 
-            # with open('news.csv', 'a', newline='', encoding='utf-8') as csv_file:
-            #     fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
-            #     writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            #     if csv_file.tell() == 0:
-            #         writer.writeheader()
-            #     writer.writerow({
-            #         # 'user_id': message.from_user.id,
-            #         'user_id': user_id,
-            #         'channel_name': channel_link,
-            #         'publication_text': last_news,
-            #         'publication_link': last_news_link,
-            #         'publication_date': msg_date.strftime('%Y-%m-%d %H:%M:%S')  # Форматируем дату
-            #     })
-
-        # await message.reply("Сохранение новостей за вчерашний день завершено.", parse_mode='Markdown')
-        # await message.reply(f"Последняя новость из {channel_link}:\n\n{last_news}\n\n[Ссылка на новость]({last_news_link})", parse_mode='Markdown')
-
 async def send_summary_to_user(message: types.Message):
-    # user_id = message.from_user.id  # Уникальный идентификатор пользователя
     user_id = str(message.from_user.id) # Уникальный идентификатор пользователя
     yesterday = datetime.utcnow() - timedelta(days=1)
     yesterday_str = yesterday.strftime('%Y-%m-%d')  # Форматируем дату в строку для сравнения
-
 
     # Сначала собираем все сохраненные ссылки для этого пользователя
     with open(users_and_links_db, 'r') as f:
@@ -175,17 +135,16 @@ async def send_summary_to_user(message: types.Message):
     
     channel_links = data.get(user_id, [])
 
-    # # Сначала собираем все сохраненные ссылки для этого пользователя
-    # channel_links = []
-    # with open('user_channels.csv', 'r', newline='', encoding='utf-8') as csv_file:
-    #     reader = csv.DictReader(csv_file)
-    #     for row in reader:
-    #         if row['user_id'] == str(user_id):
-    #             channel_links.append(row['channel_link'])
-
     # Обновляем news.csv, собирая новые новости по сохраненным ссылкам
     for channel_link in channel_links:
         await save_news(client, channel_link, user_id)  # Эта функция теперь просто сохраняет новости, не отправляя сообщений пользователю
+
+    # Проверка на существование файла перед его открытием
+    if not os.path.exists('news.csv'):
+        with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
+            fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            writer.writeheader()  # Создание файла с заголовками, если файла не существует
 
     summary_list = []  # Список для хранения саммари
 
