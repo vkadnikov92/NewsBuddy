@@ -1,5 +1,5 @@
 import joblib
-joblib.load('classifier.pkl')
+joblib.load('models/classifier.pkl')
 from sklearn.feature_extraction.text import TfidfVectorizer
 import nltk
 from nltk.corpus import stopwords

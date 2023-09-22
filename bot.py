@@ -5,9 +5,15 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from telethon import TelegramClient
 from datetime import datetime, timedelta
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, BufferedInputFile
+# from aiogram.types.input_file import InputFile
+# import tempfile
+import io
+
 
 from models.model_sibiryak import generate_summary
+from models.news_to_cloud import generate_word_cloud_image
+
 
 # Параметры Telethon
 api_id = '25651742'
@@ -32,7 +38,7 @@ async def handle_message(message: types.Message):
     if message.text.startswith("/start") or message.text.startswith("/help"):
         await send_welcome(message)
     elif message.text.startswith("https://t.me/"):
-        await save_channel_link(message)  # Сохраняем только ссылку
+        await save_channel_link(message) 
     elif message.text == "Саммари по моим источникам за вчера":
         await send_summary_to_user(message)
     elif message.text == "Рекомендации каналов":
@@ -41,12 +47,10 @@ async def handle_message(message: types.Message):
         await send_tags_cloud(message)
     elif message.text == "Посмотреть список моих каналов":
         await send_user_channels(message)
-    # elif message.text == "Удалить неактуальные каналы":
-    #     await show_channels_to_delete(message)
     elif message.text.startswith("удалить "):
         await remove_channel_by_number(message)
     else:
-        await message.reply("Друг мой любезный, не пиши ерунды. Либо дай ссылку на канал новостной, либо гуляй себе с миром.")
+        await message.reply("Друг мой любезный, не плоди лишней информации - ее и так много в этом мире. Дай ссылку на канал новостной или пользуйся командами ниже.")
 
 # функция-приветствие и создание клавиатуры с командами
 async def send_welcome(message: types.Message):
@@ -55,7 +59,6 @@ async def send_welcome(message: types.Message):
         [types.KeyboardButton(text="Саммари по моим источникам за вчера")],
         [types.KeyboardButton(text="Рекомендации каналов")],
         [types.KeyboardButton(text="Облако ключевых тем по моим каналам")],
-        # [types.KeyboardButton(text="Удалить неактуальные каналы")]
     ]
     keyboard = types.ReplyKeyboardMarkup(
         keyboard=kb,
@@ -76,18 +79,6 @@ async def send_user_channels(message: types.Message):
         await message.reply(numbered_channels + deletion_instruction) # TODO убрать превью в выдаваемом сообщении
     else:
         await message.reply("У вас нет сохраненных каналов.")
-
-# # функция удаления неактуальных более для польщователя каналов из базы
-# async def show_channels_to_delete(message: types.Message):
-#     user_id = str(message.from_user.id)
-#     with open(users_and_links_db, 'r') as f:
-#         data = json.load(f)
-#     user_channels = data.get(user_id, [])
-#     if not user_channels:
-#         await message.reply("У вас нет сохраненных каналов.")
-#         return
-#     # Отправляем пользователю список его каналов и просим ввести номера тех, которые он хочет удалить
-#     await message.reply("Введите номера каналов (в формате 'удалить 1, 3, 19'), которые вы хотите удалить, разделенные запятыми:\n" + "\n".join(f"{i}. {channel}" for i, channel in enumerate(user_channels, start=1)))
 
 # функция для удаления выбранных пользователем каналов из базы
 async def remove_channel_by_number(message: types.Message):
@@ -139,14 +130,6 @@ async def remove_channel_by_number(message: types.Message):
     else:
         await message.answer("Пожалуйста, введите корректные номера каналов после слова 'удалить', разделенные запятыми.")
 
-# функция для отправки рекомендация каналов пользователю на основании темактик присланных им каналов
-async def send_recommendations(message: types.Message):
-    await message.reply("Здесь будут рекомендации каналов.")
-
-# функция для генерации облака тегов по новостям из каналов пользователя
-async def send_tags_cloud(message: types.Message):
-    await message.reply("Здесь будет облако ключевых тем.")
-
 # Эта функция создает базу со связками сущностей "пользователь - каналы"
 async def save_channel_link(message: types.Message):
     channel_link = message.text
@@ -191,7 +174,7 @@ async def save_news(client, channel_link, user_id):
             
             # Проверка на уникальность новости перед сохранением
             if last_news_link not in existing_news:
-                publication_text = msg.text.strip()  # Удаление пробелов с обеих сторон строки
+                publication_text = msg.text.strip() if msg.text else ""  # Удаление пробелов с обеих сторон строки, если msg.text не None
                 if publication_text:  # Проверка, что строка не пуста
                     with open('news.csv', 'a', newline='', encoding='utf-8') as csv_file:
                         fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
@@ -206,15 +189,16 @@ async def save_news(client, channel_link, user_id):
                             'publication_date': msg_date.strftime('%Y-%m-%d %H:%M:%S')
                         })
 
-async def send_summary_to_user(message: types.Message):
-    user_id = str(message.from_user.id) # Уникальный идентификатор пользователя
+
+# функция по обновлению news.csv - удаляет старые новости, парсит новые
+# N - ограничение числа каналов из списка пользователя, по которым будет парсить 
+async def update_news_csv(user_id, N):
     # Сначала собираем все сохраненные ссылки для этого пользователя
     with open(users_and_links_db, 'r') as f:
         data = json.load(f)
     channel_links = data.get(user_id, [])
 
-    # Оставляем только 3 последних канала
-    N = 3  # Количество последних каналов для саммаризации
+    # N = 3  # Количество последних каналов для саммаризации
     channel_links = channel_links[-N:]  # Оставляем только последние N каналов
 
     # Проверка на существование файла перед его открытием
@@ -232,7 +216,6 @@ async def send_summary_to_user(message: types.Message):
     except FileNotFoundError:
         remaining_news = []
 
-
     with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
         fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
@@ -241,8 +224,35 @@ async def send_summary_to_user(message: types.Message):
 
     # Обновляем news.csv, собирая новые новости по сохраненным ссылкам
     for channel_link in channel_links:
-        await save_news(client, channel_link, user_id)  # Эта функция теперь просто сохраняет новости, не отправляя сообщений пользователю
+        await save_news(client, channel_link, user_id)  # Эта функция сохраняет новости, не отправляя сообщений пользователю
 
+
+# функция для отправки рекомендация каналов пользователю на основании темактик присланных им каналов
+async def send_recommendations(message: types.Message):
+    await message.reply("Здесь будут рекомендации каналов.")
+
+
+# функция для генерации облака тегов по новостям из каналов пользователя
+async def send_tags_cloud(message: types.Message):
+    user_id = str(message.from_user.id)
+    await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
+    
+    try:
+        img = generate_word_cloud_image('news.csv', user_id)
+        if img:
+            buffer = io.BytesIO(img.getvalue())  # Создайте буфер
+            buffer.seek(0)  # Переместите курсор обратно к началу файла
+            await bot.send_photo(chat_id=message.chat.id, photo=BufferedInputFile(buffer.read(), filename="cloud.png"), caption="Облако ключевых тем")
+        else:
+            await message.reply("Нет новостей за последние 24 часа.")
+    except Exception as e:
+        await message.reply(f"Произошла ошибка: {str(e)}")
+
+# функция отправки саммари новостей пользователю
+async def send_summary_to_user(message: types.Message):
+    user_id = str(message.from_user.id) # Уникальный идентификатор пользователя
+    await update_news_csv(user_id, 3)  # Обновляем news.csv перед генерацией сводки по 3 каналам пользователя
+    
     # После обновления news.csv генерируем сводку для всех новостей пользователя
     summary_list = []  # Список для хранения саммари
 
