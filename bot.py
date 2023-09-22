@@ -39,15 +39,23 @@ async def handle_message(message: types.Message):
         await send_recommendations(message)
     elif message.text == "Облако ключевых тем по моим каналам":
         await send_tags_cloud(message)
+    elif message.text == "Посмотреть список моих каналов":
+        await send_user_channels(message)
+    # elif message.text == "Удалить неактуальные каналы":
+    #     await show_channels_to_delete(message)
+    elif message.text.startswith("удалить "):
+        await remove_channel_by_number(message)
     else:
         await message.reply("Друг мой любезный, не пиши ерунды. Либо дай ссылку на канал новостной, либо гуляй себе с миром.")
 
 # функция-приветствие и создание клавиатуры с командами
 async def send_welcome(message: types.Message):
     kb = [
+        [types.KeyboardButton(text="Посмотреть список моих каналов")],
         [types.KeyboardButton(text="Саммари по моим источникам за вчера")],
         [types.KeyboardButton(text="Рекомендации каналов")],
-        [types.KeyboardButton(text="Облако ключевых тем по моим каналам")]
+        [types.KeyboardButton(text="Облако ключевых тем по моим каналам")],
+        # [types.KeyboardButton(text="Удалить неактуальные каналы")]
     ]
     keyboard = types.ReplyKeyboardMarkup(
         keyboard=kb,
@@ -55,6 +63,81 @@ async def send_welcome(message: types.Message):
         input_field_placeholder="Выберите действие"
     )
     await message.answer("Привет! Отправь мне ссылку на новостной канал вида 'https://t.me/', и я сохраню источник в своей базе.", reply_markup=keyboard)
+
+# функция для отправки пользователю перечень его сохраненных каналов
+async def send_user_channels(message: types.Message):
+    user_id = str(message.from_user.id)
+    with open(users_and_links_db, 'r') as f:
+        data = json.load(f)
+    user_channels = data.get(user_id, [])
+    if user_channels:
+        numbered_channels = "\n".join(f"{i}. {channel}" for i, channel in enumerate(user_channels, start=1))
+        deletion_instruction = "\n\nЕсли вы хотите удалить какой-то из каналов, введите запрос в бот вида 'удалить 1, 4, 7', где цифры - номера каналов в списке выше."
+        await message.reply(numbered_channels + deletion_instruction) # TODO убрать превью в выдаваемом сообщении
+    else:
+        await message.reply("У вас нет сохраненных каналов.")
+
+# # функция удаления неактуальных более для польщователя каналов из базы
+# async def show_channels_to_delete(message: types.Message):
+#     user_id = str(message.from_user.id)
+#     with open(users_and_links_db, 'r') as f:
+#         data = json.load(f)
+#     user_channels = data.get(user_id, [])
+#     if not user_channels:
+#         await message.reply("У вас нет сохраненных каналов.")
+#         return
+#     # Отправляем пользователю список его каналов и просим ввести номера тех, которые он хочет удалить
+#     await message.reply("Введите номера каналов (в формате 'удалить 1, 3, 19'), которые вы хотите удалить, разделенные запятыми:\n" + "\n".join(f"{i}. {channel}" for i, channel in enumerate(user_channels, start=1)))
+
+# функция для удаления выбранных пользователем каналов из базы
+async def remove_channel_by_number(message: types.Message):
+    user_id = str(message.from_user.id)
+    channel_numbers_str = message.text.replace("удалить ", "")  # Удаляем "удалить " из строки
+    
+    with open(users_and_links_db, 'r') as f:
+        data = json.load(f)
+    user_channels = data.get(user_id, [])
+    
+    # Разделяем строку с номерами по запятой и удаляем пробелы
+    channel_numbers_str_list = [num.strip() for num in channel_numbers_str.split(",")]
+    
+    # Проверяем, что все элементы в списке являются числами
+    if all(num.isdigit() for num in channel_numbers_str_list):
+        # Преобразуем строки в числа и уменьшаем их на 1, так как нумерация начинается с 1
+        channel_numbers = [int(num) - 1 for num in channel_numbers_str_list]
+        
+        removed_channels = []
+        # Удаляем каналы с указанными номерами
+        for channel_number in sorted(channel_numbers, reverse=True):  # Удаляем с конца, чтобы избежать смещения индексов
+            if 0 <= channel_number < len(user_channels):
+                removed_channels.append(user_channels[channel_number])  # Добавляем удаленный канал в список
+                del user_channels[channel_number]
+            else:
+                await message.answer(f"Неверный номер канала: {channel_number + 1}. Попробуйте еще раз.")
+                return
+        
+        data[user_id] = user_channels
+        with open(users_and_links_db, 'w') as f:
+            json.dump(data, f)
+        
+        # Удаляем из news.csv новости, связанные с удаленными каналами
+        try:
+            with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
+                reader = csv.DictReader(csv_file)
+                remaining_news = [row for row in reader if not (row['channel_name'] in removed_channels and row['user_id'] == user_id)]
+                # remaining_news = [row for row in reader if row['channel_name'] not in removed_channels or row['user_id'] != user_id]
+        except FileNotFoundError:
+            remaining_news = []
+        
+        with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
+            fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(remaining_news)
+
+        await message.answer("Каналы и связанные с ними новости успешно удалены.")
+    else:
+        await message.answer("Пожалуйста, введите корректные номера каналов после слова 'удалить', разделенные запятыми.")
 
 # функция для отправки рекомендация каналов пользователю на основании темактик присланных им каналов
 async def send_recommendations(message: types.Message):
@@ -67,16 +150,16 @@ async def send_tags_cloud(message: types.Message):
 # Эта функция создает базу со связками сущностей "пользователь - каналы"
 async def save_channel_link(message: types.Message):
     channel_link = message.text
-    # user_id = message.from_user.id
     user_id = str(message.from_user.id)
 
     with open(users_and_links_db, 'r') as f:
         data = json.load(f)
     
     user_channels = data.get(user_id, [])
-    if channel_link not in user_channels:
-        user_channels.append(channel_link)
-        data[user_id] = user_channels
+    if channel_link in user_channels:  # Если ссылка уже существует, удаляем ее
+        user_channels.remove(channel_link)
+    user_channels.append(channel_link)  # Добавляем ссылку в конец списка
+    data[user_id] = user_channels
     
     with open(users_and_links_db, 'w') as f:
         json.dump(data, f)
@@ -85,8 +168,7 @@ async def save_channel_link(message: types.Message):
 
 # функция-парсинга и сохранения новостей по заранее сохраненным ссылкам от пользователя
 async def save_news(client, channel_link, user_id):
-    # print(f"save_news called with {channel_link} and {user_id}") # для отладки
-    yesterday = datetime.utcnow() - timedelta(days=1)
+    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
     entity = await client.get_entity(channel_link)
 
     # Загрузка существующих новостей
@@ -100,10 +182,10 @@ async def save_news(client, channel_link, user_id):
     except FileNotFoundError:
         pass  # Файл еще не создан
 
-    async for msg in client.iter_messages(entity, limit=20): # Если хотим все вчерашние, то надо ставить limit=None
+    async for msg in client.iter_messages(entity, limit=None): # Если хотим все вчерашние, то надо ставить limit=None
         msg_date = msg.date.replace(tzinfo=None)  # Убедитесь, что время в UTC
-
-        if msg_date.date() == yesterday.date():
+        if msg_date > twenty_four_hours_ago:
+        # if msg_date.date() == yesterday.date():
             last_news = msg.text
             last_news_link = f"https://t.me/{channel_link.split('/')[-1]}/{msg.id}"
             
@@ -126,18 +208,14 @@ async def save_news(client, channel_link, user_id):
 
 async def send_summary_to_user(message: types.Message):
     user_id = str(message.from_user.id) # Уникальный идентификатор пользователя
-    yesterday = datetime.utcnow() - timedelta(days=1)
-    yesterday_str = yesterday.strftime('%Y-%m-%d')  # Форматируем дату в строку для сравнения
-
     # Сначала собираем все сохраненные ссылки для этого пользователя
     with open(users_and_links_db, 'r') as f:
         data = json.load(f)
-    
     channel_links = data.get(user_id, [])
 
-    # Обновляем news.csv, собирая новые новости по сохраненным ссылкам
-    for channel_link in channel_links:
-        await save_news(client, channel_link, user_id)  # Эта функция теперь просто сохраняет новости, не отправляя сообщений пользователю
+    # Оставляем только 3 последних канала
+    N = 3  # Количество последних каналов для саммаризации
+    channel_links = channel_links[-N:]  # Оставляем только последние N каналов
 
     # Проверка на существование файла перед его открытием
     if not os.path.exists('news.csv'):
@@ -146,21 +224,37 @@ async def send_summary_to_user(message: types.Message):
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             writer.writeheader()  # Создание файла с заголовками, если файла не существует
 
+    # Удаляем из news.csv все ранее собранные новости для этого пользователя
+    try:
+        with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
+            reader = csv.DictReader(csv_file)
+            remaining_news = [row for row in reader if row['user_id'] != user_id]
+    except FileNotFoundError:
+        remaining_news = []
+
+
+    with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
+        fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(remaining_news)
+
+    # Обновляем news.csv, собирая новые новости по сохраненным ссылкам
+    for channel_link in channel_links:
+        await save_news(client, channel_link, user_id)  # Эта функция теперь просто сохраняет новости, не отправляя сообщений пользователю
+
+    # После обновления news.csv генерируем сводку для всех новостей пользователя
     summary_list = []  # Список для хранения саммари
 
     with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
         reader = csv.DictReader(csv_file)
         for row in reader:
             if row['user_id'] == str(user_id):  # Фильтрация по уникальному идентификатору пользователя
-                publication_date = datetime.strptime(row['publication_date'], '%Y-%m-%d %H:%M:%S')
-                publication_date_str = publication_date.strftime('%Y-%m-%d')
-
-                if publication_date_str == yesterday_str:  # Проверка, что новость от вчерашнего дня
-                    publication_text = row['publication_text']
-                    publication_link = row['publication_link']
-                    summary = generate_summary(publication_text)  # Генерация саммари
-                    summary_with_link = f"{summary}\n[Link]({publication_link})" # Генерация саммари со ссылкой на источник
-                    summary_list.append(summary_with_link)
+                publication_text = row['publication_text']
+                publication_link = row['publication_link']
+                summary = generate_summary(publication_text)  # Генерация саммари
+                summary_with_link = f"{summary}\n[Link]({publication_link})" # Генерация саммари со ссылкой на источник
+                summary_list.append(summary_with_link)
     if summary_list:
         summary_text = "\n\n---\n\n".join(summary_list)
         
