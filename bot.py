@@ -6,32 +6,35 @@ from aiogram import Bot, Dispatcher, types
 from telethon import TelegramClient
 from datetime import datetime, timedelta
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, BufferedInputFile
-# from aiogram.types.input_file import InputFile
-# import tempfile
 import io
+import random
 
-
+from config import API_ID, API_HASH, API_TOKEN, PHONE
 from models.model_sibiryak import generate_summary
 from models.news_to_cloud import generate_word_cloud_image
 from models.recsys_ml import generate_recommendations, category_to_channels
+from quotes import QUOTES
 
 
 # Параметры Telethon
-api_id = '25651742'
-api_hash = 'e6947035583af4601a19198d41ed0b93'
-phone = '+995592157452'
-# client = TelegramClient(phone, api_id, api_hash)
+api_id = API_ID
+api_hash = API_HASH
+phone = PHONE
 client = TelegramClient('anon', api_id, api_hash)
 
 # Параметры aiogram
-API_TOKEN = '6370076869:AAGHr_0IK8hzwBmgbBr3FjNGkvvWa3R2BGI'
+API_TOKEN = API_TOKEN
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
+# CONSTS
+USERS_AND_LINKS_DB = 'user_channels.json'
+NEWS_CSV_PATH = 'news.csv'
+
 # пустой файл будущей базы со связкой "пользователь <> его ссылки на каналы"
-users_and_links_db = 'user_channels.json'
-if not os.path.exists(users_and_links_db):
-    with open(users_and_links_db, 'w') as f:
+# USERS_AND_LINKS_DB = 'user_channels.json' TODO delete
+if not os.path.exists(USERS_AND_LINKS_DB):
+    with open(USERS_AND_LINKS_DB, 'w') as f:
         json.dump({}, f)
 
 @dp.message()
@@ -40,43 +43,56 @@ async def handle_message(message: types.Message):
         await send_welcome(message)
     elif message.text.startswith("https://t.me/"):
         await save_channel_link(message) 
-    elif message.text == "Саммари по моим источникам за вчера":
+    elif message.text == "Саммари моих новостей за 24ч":
         await send_summary_to_user(message)
     elif message.text == "Рекомендации каналов":
         await send_recommendations(message)
-    elif message.text == "Облако ключевых тем по моим каналам":
+    elif message.text == "Облако ключевых тем по моим новостям":
         await send_tags_cloud(message)
-    elif message.text == "Посмотреть список моих каналов":
+    elif message.text == "Мои источники":
         await send_user_channels(message)
     elif message.text.startswith("удалить "):
         await remove_channel_by_number(message)
+    elif message.text == "Цитаты великих восходителей Эльбруса":
+        await send_quote(message)
     else:
-        await message.reply("Друг мой любезный, не плоди лишней информации - ее и так много в этом мире. Дай ссылку на канал новостной или пользуйся командами ниже.")
+        await message.reply("Друг мой любезный, не плоди лишней информации - ее и так слишком много в этом мире. Дай ссылку на новостной канал или пользуйся командами ниже.")
 
 # функция-приветствие и создание клавиатуры с командами
 async def send_welcome(message: types.Message):
     kb = [
-        [types.KeyboardButton(text="Посмотреть список моих каналов")],
-        [types.KeyboardButton(text="Саммари по моим источникам за вчера")],
-        [types.KeyboardButton(text="Рекомендации каналов")],
-        [types.KeyboardButton(text="Облако ключевых тем по моим каналам")],
+        [types.KeyboardButton(text="📚 Мои источники"), types.KeyboardButton(text="🌟 Рекомендации каналов")],
+        # [types.KeyboardButton(text="Cписок моих каналов")],
+        [types.KeyboardButton(text="📰 Саммари моих новостей за 24ч")],
+        # [types.KeyboardButton(text="Рекомендации каналов")],
+        [types.KeyboardButton(text="☁️ Облако ключевых тем по моим новостям")],
+        [types.KeyboardButton(text="🏔️ Цитаты великих восходителей Эльбруса")],
     ]
     keyboard = types.ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        input_field_placeholder="Выберите действие"
+        input_field_placeholder="Выберите действие или отправьте ссылку на канал'"
     )
-    await message.answer("Привет! Отправь мне ссылку на новостной канал вида 'https://t.me/', и я сохраню источник в своей базе.", reply_markup=keyboard)
+    await message.answer("Привет! Я твой NewsBuddy - бот, помогающий собрать актуальные новости в одном месте.\n\n"
+                         "Отправь мне ссылку на телеграм канал вида 'https://t.me/', и я сохраню его в своей базе, чтобы потом делиться с тобой новостной картиной дня.\n\n"
+                         "Я еще в начальной фазе разработки, поэтому умерь свои ожидания :)", reply_markup=keyboard)
+
+
+# функция для отправки смешной цитаты преподавателей
+async def send_quote(message: types.Message):
+    quote = random.choice(QUOTES)
+    await message.reply(quote)
+
 
 # функция для отправки пользователю перечень его сохраненных каналов
 async def send_user_channels(message: types.Message):
     user_id = str(message.from_user.id)
-    with open(users_and_links_db, 'r') as f:
+    with open(USERS_AND_LINKS_DB, 'r') as f:
         data = json.load(f)
     user_channels = data.get(user_id, [])
     if user_channels:
         numbered_channels = "\n".join(f"{i}. {channel}" for i, channel in enumerate(user_channels, start=1))
-        deletion_instruction = "\n\nЕсли вы хотите удалить какой-то из каналов, введите запрос в бот вида 'удалить 1, 4, 7', где цифры - номера каналов в списке выше."
+        deletion_instruction = "\n\nЕсли вы хотите удалить какой-то из каналов, введите запрос в бот команду вида 'удалить 1, 4, 12', где числа - номера каналов в списке выше."
         await message.reply(numbered_channels + deletion_instruction) # TODO убрать превью в выдаваемом сообщении
     else:
         await message.reply("У вас нет сохраненных каналов.")
@@ -86,7 +102,7 @@ async def remove_channel_by_number(message: types.Message):
     user_id = str(message.from_user.id)
     channel_numbers_str = message.text.replace("удалить ", "")  # Удаляем "удалить " из строки
     
-    with open(users_and_links_db, 'r') as f:
+    with open(USERS_AND_LINKS_DB, 'r') as f:
         data = json.load(f)
     user_channels = data.get(user_id, [])
     
@@ -109,7 +125,7 @@ async def remove_channel_by_number(message: types.Message):
                 return
         
         data[user_id] = user_channels
-        with open(users_and_links_db, 'w') as f:
+        with open(USERS_AND_LINKS_DB, 'w') as f:
             json.dump(data, f)
         
         # Удаляем из news.csv новости, связанные с удаленными каналами
@@ -136,7 +152,7 @@ async def save_channel_link(message: types.Message):
     channel_link = message.text
     user_id = str(message.from_user.id)
 
-    with open(users_and_links_db, 'r') as f:
+    with open(USERS_AND_LINKS_DB, 'r') as f:
         data = json.load(f)
     
     user_channels = data.get(user_id, [])
@@ -145,7 +161,7 @@ async def save_channel_link(message: types.Message):
     user_channels.append(channel_link)  # Добавляем ссылку в конец списка
     data[user_id] = user_channels
     
-    with open(users_and_links_db, 'w') as f:
+    with open(USERS_AND_LINKS_DB, 'w') as f:
         json.dump(data, f)
     
     await message.reply("Новостая ссылка успешно сохранена в базу.", parse_mode='Markdown')
@@ -169,8 +185,7 @@ async def save_news(client, channel_link, user_id):
     async for msg in client.iter_messages(entity, limit=None): # Если хотим все вчерашние, то надо ставить limit=None
         msg_date = msg.date.replace(tzinfo=None)  # Убедитесь, что время в UTC
         if msg_date > twenty_four_hours_ago:
-        # if msg_date.date() == yesterday.date():
-            last_news = msg.text
+            # last_news = msg.text
             last_news_link = f"https://t.me/{channel_link.split('/')[-1]}/{msg.id}"
             
             # Проверка на уникальность новости перед сохранением
@@ -195,25 +210,12 @@ async def save_news(client, channel_link, user_id):
 # N - ограничение числа каналов из списка пользователя, по которым будет парсить 
 async def update_news_csv(user_id, N):
     # Сначала собираем все сохраненные ссылки для этого пользователя
-    with open(users_and_links_db, 'r') as f:
+    with open(USERS_AND_LINKS_DB, 'r') as f:
         data = json.load(f)
     channel_links = data.get(user_id, [])
-
-    # N = 3  # Количество последних каналов для саммаризации
     channel_links = channel_links[-N:]  # Оставляем только последние N каналов
 
     fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
-    
-    # # Чтение существующего файла или создание нового
-    # if os.path.exists('news.csv'):
-    #     with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
-    #         reader = csv.DictReader(csv_file)
-    #         remaining_news = [row for row in reader if row['user_id'] != user_id]
-    # else:
-    #     remaining_news = []
-    #     with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
-    #         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-    #         writer.writeheader()  # Создание файла с заголовками, если файла не существует
     
     # Проверка на существование файла перед его открытием
     if not os.path.exists('news.csv'):
@@ -246,8 +248,8 @@ async def send_recommendations(message: types.Message):
     user_id = int(message.from_user.id)
     await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
 
-    news_csv_path = 'news.csv' 
-    recommended_channels = generate_recommendations(user_id, news_csv_path, category_to_channels)
+    # NEWS_CSV_PATH = 'news.csv' TODO delete
+    recommended_channels = generate_recommendations(user_id, NEWS_CSV_PATH, category_to_channels)
     if not recommended_channels:
         print("No recommendations found for user_id:", user_id)
     if recommended_channels:
@@ -255,7 +257,7 @@ async def send_recommendations(message: types.Message):
         await message.reply(f"Вот несколько рекомендованных каналов для вас:\n{recommended_channels_str}")
     else:
         await message.reply("Извините, но мы не смогли найти подходящих рекомендаций для вас.")
-    # await message.reply("Здесь будут рекомендации каналов.")
+    # await message.reply("Здесь будут рекомендации каналов.") TODO delete
 
 
 # функция для генерации облака тегов по новостям из каналов пользователя
