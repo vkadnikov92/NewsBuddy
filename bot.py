@@ -62,14 +62,13 @@ async def handle_message(message: types.Message):
 async def send_welcome(message: types.Message):
     kb = [
         [types.KeyboardButton(text="📚 Мои источники"), types.KeyboardButton(text="🌟 Рекомендации каналов")],
-        # [types.KeyboardButton(text="Cписок моих каналов")],
         [types.KeyboardButton(text="📰 Саммари моих новостей за 24ч")],
-        # [types.KeyboardButton(text="Рекомендации каналов")],
         [types.KeyboardButton(text="☁️ Облако ключевых тем по моим новостям")],
         [types.KeyboardButton(text="🏔️ Цитаты великих восходителей Эльбруса")],
     ]
     keyboard = types.ReplyKeyboardMarkup(
         keyboard=kb,
+
         resize_keyboard=True,
         input_field_placeholder="Выберите действие или отправьте ссылку на канал'"
     )
@@ -133,7 +132,6 @@ async def remove_channel_by_number(message: types.Message):
             with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
                 reader = csv.DictReader(csv_file)
                 remaining_news = [row for row in reader if not (row['channel_name'] in removed_channels and row['user_id'] == user_id)]
-                # remaining_news = [row for row in reader if row['channel_name'] not in removed_channels or row['user_id'] != user_id]
         except FileNotFoundError:
             remaining_news = []
         
@@ -248,7 +246,6 @@ async def send_recommendations(message: types.Message):
     user_id = int(message.from_user.id)
     await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
 
-    # NEWS_CSV_PATH = 'news.csv' TODO delete
     recommended_channels = generate_recommendations(user_id, NEWS_CSV_PATH, category_to_channels)
     if not recommended_channels:
         print("No recommendations found for user_id:", user_id)
