@@ -13,6 +13,7 @@ import io
 
 from models.model_sibiryak import generate_summary
 from models.news_to_cloud import generate_word_cloud_image
+from models.recsys_ml import generate_recommendations, category_to_channels
 
 
 # Параметры Telethon
@@ -201,6 +202,19 @@ async def update_news_csv(user_id, N):
     # N = 3  # Количество последних каналов для саммаризации
     channel_links = channel_links[-N:]  # Оставляем только последние N каналов
 
+    fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
+    
+    # # Чтение существующего файла или создание нового
+    # if os.path.exists('news.csv'):
+    #     with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
+    #         reader = csv.DictReader(csv_file)
+    #         remaining_news = [row for row in reader if row['user_id'] != user_id]
+    # else:
+    #     remaining_news = []
+    #     with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
+    #         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+    #         writer.writeheader()  # Создание файла с заголовками, если файла не существует
+    
     # Проверка на существование файла перед его открытием
     if not os.path.exists('news.csv'):
         with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
@@ -216,8 +230,8 @@ async def update_news_csv(user_id, N):
     except FileNotFoundError:
         remaining_news = []
 
+    # Запись обновленных данных обратно в файл
     with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
-        fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(remaining_news)
@@ -229,7 +243,19 @@ async def update_news_csv(user_id, N):
 
 # функция для отправки рекомендация каналов пользователю на основании темактик присланных им каналов
 async def send_recommendations(message: types.Message):
-    await message.reply("Здесь будут рекомендации каналов.")
+    user_id = int(message.from_user.id)
+    await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
+
+    news_csv_path = 'news.csv' 
+    recommended_channels = generate_recommendations(user_id, news_csv_path, category_to_channels)
+    if not recommended_channels:
+        print("No recommendations found for user_id:", user_id)
+    if recommended_channels:
+        recommended_channels_str = "\n".join(recommended_channels)
+        await message.reply(f"Вот несколько рекомендованных каналов для вас:\n{recommended_channels_str}")
+    else:
+        await message.reply("Извините, но мы не смогли найти подходящих рекомендаций для вас.")
+    # await message.reply("Здесь будут рекомендации каналов.")
 
 
 # функция для генерации облака тегов по новостям из каналов пользователя
