@@ -1,5 +1,43 @@
+# Стек
+![aiogram](https://img.shields.io/badge/aiogram-Used-blue)
+![pytorch](https://img.shields.io/badge/pytorch-Used-yellow)
+![telethon](https://img.shields.io/badge/telethon-Used-green)
+![sklearn](https://img.shields.io/badge/sklearn-Used-orange)
+![huggingface](https://img.shields.io/badge/huggingface-Used-purple)
 # NewsBuddy
-A helpful bot for news summary and recommendations
+NewsBuddy - это бот, который помогает вам быть в курсе последних новостей из ваших любимых телеграмм-каналов. Он собирает новости с тех каналов, на которые вы подписаны, и дает вам краткое изложение за день. Вы можете прочитать саммари, чтобы узнать, что происходит в мире, или перейти к полным статьям, если вас заинтересовало что-то конкретное. Также NewsBuddy может создавать облако слов из новостей, чтобы показать вам, какие темы и ключевые слова были наиболее популярны в течение дня. Это может помочь вам отслеживать тренды и находить новые интересные источники информации. Кроме того, NewsBuddy может рекомендовать вам каналы в зависимости от ваших предпочтений и интересов. NewsBuddy - это ваш личный помощник по новостям, который делает чтение новостей удобным и интересным.
+![OIG](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/6b436e33-d153-4e3d-bf9f-7fd06f93adbe)
+
+# Установка 
+1. перейдите в директорию в которой хотите хранить репозиторий с ботом
+2. клониройте репозиторий на ваш пк(git clone git@github.com:vkadnikov92/NewsBuddy.git)
+# Запуск 
+1. перейдите на [сайт](https://my.telegram.org/auth) и создайте свое приложение, оно понадобится для работы бота
+2. создайте своего бота в BotFather telegram 
+3. перейдите в директорию с ботом и активируйте свое виртуальное окружение для данного проекта
+4. установите необходимые библиотеки из requirements.txt(pip install -r requirements.txt)
+5. заполните необхходимые поля(api_id api_hash phone и API_TOKEN) в файле bot.py/bot_short.py в зависимости от версии которую вы хотите запустить(данные должны быть у вас после 1 и 2 шагов)
+6. После заполнения необходимых переменных просто запустите bot.py/bot_short.py
+# Использование 
+теперь когда бот установлен и запущен вы можете пользоваться его основными функциями:
+1. Заправшивать у него саммари телеграм каналов которые вы ему отправили
+2. Получать рекомендации по каналам в зависимости от ваших интересов
+3. Генерировать облако слов по вашим новостям
+4. Получать цитаты лучших из Elbrus Bootcamp
+# Примеры работы бота 
+рекомендации
+![image](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/5b969616-7a31-4d38-88b6-da85f4291f0e)
+саммари
+![image](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/d258e1ab-86e0-451f-8afe-8ef76cbbabca)
+облако
+![image](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/a4e381a0-970a-4189-9557-ec28031c8fef)
+# Команда проекта
+1. [Владимир Кадников]([https://github.com/AntNikYab](https://github.com/vkadnikov92))
+2. [Григорий сам заполнит свою фамилию я в душе не ебу как ее писать]([https://github.com/Vikaska031](https://github.com/Rzhischev))
+3. [Владислав Филиппов]([https://github.com/veidlink](https://github.com/Vlad1slawoo))
+
+
+
 
 На текущий момент (12-49 26 сентября 2023 года) мы имеем 2 версии бота
 - bot.py
