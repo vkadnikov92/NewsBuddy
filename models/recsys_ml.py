@@ -9,29 +9,20 @@ import pandas as pd
 nltk.download('stopwords')
 russian_stop_words = stopwords.words("russian")
 tfidf_vectorizer = TfidfVectorizer(max_features=5000, stop_words=russian_stop_words)
-# classifier = joblib.load('classifier.pkl') # /Users/vladimirkadnikov/elbrus/NewsBuddy/models/classifier.pkl
-classifier = joblib.load('/Users/vladimirkadnikov/elbrus/NewsBuddy/models/classifier.pkl') # TODO change the ling to normal
-# tfidf_vectorizer = joblib.load('tfidf_vectorizer.pkl') # /Users/vladimirkadnikov/elbrus/NewsBuddy/models/tfidf_vectorizer.pkl
-tfidf_vectorizer = joblib.load('/Users/vladimirkadnikov/elbrus/NewsBuddy/models/tfidf_vectorizer.pkl') # TODO change the ling to normal
+classifier = joblib.load('models/classifier.pkl')
+tfidf_vectorizer = joblib.load('models/tfidf_vectorizer.pkl')
 
 def get_categories(user_id, news):
-    print(f"Getting categories for user_id: {user_id}") # отладка
     predicted_channel_category = []
     user_id_to_select = user_id
     user_data = news[news['user_id'] == user_id_to_select]  # news заменяем на наш файл с новостями
-    print(f"User Data: \n{user_data.head()}")
     user_data_grouped = user_data.groupby('channel_name')
     for channel_name, channel_data in user_data_grouped:
-        print(f"Channel Data: \n{channel_data.head()}")
         channel_news_texts = channel_data['publication_text'].tolist()
-        print(f"Channel News Texts: {channel_news_texts}")
         channel_news_tfidf = tfidf_vectorizer.transform(channel_news_texts)
-
         channel_news_predictions = classifier.predict(channel_news_tfidf)
-        print(f"Channel News Predictions: {channel_news_predictions}")
         predicted_channel_category.append(
             max(set(channel_news_predictions), key=channel_news_predictions.tolist().count))
-        print(f"Predicted Channel Category: {predicted_channel_category}")
     return predicted_channel_category
 
 
@@ -134,35 +125,28 @@ category_to_channels = {
 
 
 def generate_recommendations(user_id, news_csv_path, category_to_channels):
-    # print(f"Generating recommendations for user_id: {user_id}") # отладка
-    
     try:
         news = pd.read_csv(news_csv_path)
-        # print(f"News DataFrame: \n{news.head()}")
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return []
     
     try:
         predicted_channel_category = get_categories(user_id, news)
-        # print(f"Predicted Channel Category: {predicted_channel_category}")
     except Exception as e:
         print(f"Error getting categories: {e}")
         return []
 
     try:
         recommended_channels = suggestions(predicted_channel_category, category_to_channels)
-        # print(f"Recommended Channels: {recommended_channels}")
     except Exception as e:
         print(f"Error getting suggestions: {e}")
         return []
-    
-    # recommended_channels = suggestions(predicted_channel_category, category_to_channels)
     return recommended_channels
 
-# # Inference
 
-# news = pd.read_csv('/Users/vladimirkadnikov/elbrus/NewsBuddy/news.csv')
+# # Inference
+# news = pd.read_csv('NewsBuddy/news.csv')
 # rec = suggestions(get_categories(6555020781, news), category_to_channels)
 # print(rec)
 
