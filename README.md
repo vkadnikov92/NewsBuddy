@@ -25,11 +25,15 @@ NewsBuddy - это бот, который помогает вам быть в к
 3. Генерировать облако слов по вашим новостям
 4. Получать цитаты лучших из Elbrus Bootcamp
 # Примеры работы бота 
-рекомендации
+Облако
+
 ![image](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/5b969616-7a31-4d38-88b6-da85f4291f0e)
+
 саммари
 ![image](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/d258e1ab-86e0-451f-8afe-8ef76cbbabca)
-облако
+
+рекомендации
+
 ![image](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/a4e381a0-970a-4189-9557-ec28031c8fef)
 # Команда проекта
 1. [Владимир Кадников]([https://github.com/AntNikYab](https://github.com/vkadnikov92))
