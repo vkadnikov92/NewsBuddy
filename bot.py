@@ -11,9 +11,10 @@ import random
 from config import API_ID, API_HASH, API_TOKEN, PHONE
 from models.model_sibiryak import generate_summary
 from models.news_to_cloud import generate_word_cloud_image
-from models.recsys_ml import generate_recommendations, category_to_channels
-from quotes import QUOTES
-
+from models.recsys_ml import generate_recommendations
+from quotes_categories import QUOTES
+from quotes_categories import category_to_channels
+import time
 
 # Параметры Telethon
 api_id = API_ID
@@ -162,89 +163,86 @@ async def save_channel_link(message: types.Message):
     
     await message.reply("Новостая ссылка успешно сохранена в базу.", parse_mode='Markdown')
 
-# функция-парсинга и сохранения новостей по заранее сохраненным ссылкам от пользователя
-async def save_news(client, channel_link, user_id):
-    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
-    entity = await client.get_entity(channel_link)
+# новая функция сохранения новостей
+# N_channels - ограничение числа каналов из списка пользователя, по которым будет парсить
+# news_limit_per_channel - ограничение числа новостей в каждом канала списка пользователя для парсинга
+async def save_news(client, user_id, N_channels=3, news_limit_per_channel=10):
+    start_time = time.time()
+    print(f"Start saving news for user_id {user_id}")
+    
+    # Получаем список каналов пользователя
+    with open('user_channels.json', 'r') as f:
+        user_channels = json.load(f).get(str(user_id), [])[-N_channels:]
+    
+    new_rows = []
+    for channel_link in user_channels:
+        entity = await client.get_entity(channel_link)
+        async for msg in client.iter_messages(entity, limit=news_limit_per_channel):
+            msg_date = msg.date.replace(tzinfo=None)
+            last_news_link = f"https://t.me/{channel_link.split('/')[-1]}/{msg.id}"
+            publication_text = msg.text.strip() if msg.text else ""
+            if publication_text:
+                new_rows.append({
+                    'user_id': user_id,
+                    'channel_name': channel_link,
+                    'publication_text': publication_text,
+                    'publication_link': last_news_link,
+                    'publication_date': msg_date.strftime('%Y-%m-%d %H:%M:%S')
+                })
+    
+    with open('news.csv', 'a', newline='', encoding='utf-8') as csv_file:
+        fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writerows(new_rows)
+    print("Time taken for writing to CSV: %s seconds" % (time.time() - start_time))
 
-    # Загрузка существующих новостей
-    existing_news = []
-    try:
+
+# функция обновления news.csv - удаляет старые новости, парсит новые с помощью другой функции save_news
+# N_channels - ограничение числа каналов из списка пользователя, по которым будет парсить
+async def update_news_csv(user_id, N_channels=5):
+    start_time = time.time()
+    print(f"Updating news.csv for user_id {user_id}")
+
+    # Проверка на существование файла перед его открытием
+    if os.path.exists('news.csv'):
+        # Если файл существует, удаляем старые новости пользователя
         with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
             reader = csv.DictReader(csv_file)
-            for row in reader:
-                if row['user_id'] == user_id:
-                    existing_news.append(row['publication_link'])  # предполагается, что publication_link уникален для каждой новости
-    except FileNotFoundError:
-        pass  # Файл еще не создан
-
-    async for msg in client.iter_messages(entity, limit=None): # Если хотим все вчерашние, то надо ставить limit=None
-        msg_date = msg.date.replace(tzinfo=None)  # Убедитесь, что время в UTC
-        if msg_date > twenty_four_hours_ago:
-            # last_news = msg.text
-            last_news_link = f"https://t.me/{channel_link.split('/')[-1]}/{msg.id}"
-            
-            # Проверка на уникальность новости перед сохранением
-            if last_news_link not in existing_news:
-                publication_text = msg.text.strip() if msg.text else ""  # Удаление пробелов с обеих сторон строки, если msg.text не None
-                if publication_text:  # Проверка, что строка не пуста
-                    with open('news.csv', 'a', newline='', encoding='utf-8') as csv_file:
-                        fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
-                        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-                        if csv_file.tell() == 0:
-                            writer.writeheader()
-                        writer.writerow({
-                            'user_id': user_id,
-                            'channel_name': channel_link,
-                            'publication_text': publication_text,
-                            'publication_link': last_news_link,
-                            'publication_date': msg_date.strftime('%Y-%m-%d %H:%M:%S')
-                        })
-
-
-# функция по обновлению news.csv - удаляет старые новости, парсит новые
-# N - ограничение числа каналов из списка пользователя, по которым будет парсить 
-async def update_news_csv(user_id, N):
-    # Сначала собираем все сохраненные ссылки для этого пользователя
-    with open(USERS_AND_LINKS_DB, 'r') as f:
-        data = json.load(f)
-    channel_links = data.get(user_id, [])
-    channel_links = channel_links[-N:]  # Оставляем только последние N каналов
-
-    fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
-    
-    # Проверка на существование файла перед его открытием
-    if not os.path.exists('news.csv'):
+            remaining_news = [row for row in reader if row['user_id'] != str(user_id)]
+    else:
+        # Если файла не существует, то просто создаем пустой список
+        remaining_news = []
+        # и создаем файл с заголовками
         with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
             fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             writer.writeheader()  # Создание файла с заголовками, если файла не существует
 
-    # Удаляем из news.csv все ранее собранные новости для этого пользователя
-    try:
-        with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
-            reader = csv.DictReader(csv_file)
-            remaining_news = [row for row in reader if row['user_id'] != user_id]
-    except FileNotFoundError:
-        remaining_news = []
-
     # Запись обновленных данных обратно в файл
     with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
+        fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
+        if not remaining_news:  # Если список пуст, то записываем заголовки
+            writer.writeheader()
         writer.writerows(remaining_news)
-
-    # Обновляем news.csv, собирая новые новости по сохраненным ссылкам
-    for channel_link in channel_links:
-        await save_news(client, channel_link, user_id)  # Эта функция сохраняет новости, не отправляя сообщений пользователю
-
+    
+    await save_news(client, user_id, N_channels=N_channels)
+    print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time))
 
 # функция для отправки рекомендация каналов пользователю на основании темактик присланных им каналов
 async def send_recommendations(message: types.Message):
-    user_id = int(message.from_user.id)
+    start_time = time.time() # отладка
+    user_id = str(message.from_user.id)
     await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
+    user_id = int(user_id)
+    print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time)) # отладка
+    start_time = time.time()  # Resetting start_time # отладка
+    
 
     recommended_channels = generate_recommendations(user_id, NEWS_CSV_PATH, category_to_channels)
+    print("Time taken for generate_recommendations: %s seconds" % (time.time() - start_time)) # отладка
+    start_time = time.time()  # Resetting start_time # отладка
+
     if not recommended_channels:
         print("No recommendations found for user_id:", user_id)
     if recommended_channels:
@@ -252,27 +250,38 @@ async def send_recommendations(message: types.Message):
         await message.reply(f"Вот несколько рекомендованных каналов для вас:\n{recommended_channels_str}")
     else:
         await message.reply("Извините, но мы не смогли найти подходящих рекомендаций для вас.")
-    # await message.reply("Здесь будут рекомендации каналов.") TODO delete
-
+    print("Time taken for sending message: %s seconds" % (time.time() - start_time)) # отладка
 
 # функция для генерации облака тегов по новостям из каналов пользователя
 async def send_tags_cloud(message: types.Message):
+    start_time = time.time() # отладка
     user_id = str(message.from_user.id)
     await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
     
+    print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time)) # отладка
+    start_time = time.time()  # Resetting start_time
+
     try:
         img = generate_word_cloud_image('news.csv', user_id)
+        print("Time taken for generate_word_cloud_image: %s seconds" % (time.time() - start_time)) # отладка
+        start_time = time.time()  # Resetting start_time # отладка
+
         if img:
             buffer = io.BytesIO(img.getvalue())  # Создайте буфер
             buffer.seek(0)  # Переместите курсор обратно к началу файла
             await bot.send_photo(chat_id=message.chat.id, photo=BufferedInputFile(buffer.read(), filename="cloud.png"), caption="Облако ключевых тем")
         else:
             await message.reply("Нет новостей за последние 24 часа.")
+        print("Time taken for sending message or image: %s seconds" % (time.time() - start_time))
     except Exception as e:
         await message.reply(f"Произошла ошибка: {str(e)}")
 
 # функция отправки саммари новостей пользователю
-async def send_summary_to_user(message: types.Message):
+async def send_summary_to_user(message: types.Message):   
+    # Отправляем пользователю сообщение о том, что ему нужно подождать
+    # await message.reply("Пожалуйста, подождите, это может занять некоторое время, если новостей в каналах и самих каналов много. \n" # не работает
+    #                     "Пока вы ждете, узнайте мудрость восходителей по кнопке \n'🏔️ Цитаты великих восходителей Эльбруса'")
+
     user_id = str(message.from_user.id) # Уникальный идентификатор пользователя
     await update_news_csv(user_id, 3)  # Обновляем news.csv перед генерацией сводки по 3 каналам пользователя
     
