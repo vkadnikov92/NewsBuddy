@@ -3,6 +3,7 @@ import csv
 import json
 import asyncio
 from aiogram import Bot, Dispatcher, types
+# from aiogram.dispatcher.middlewares import BaseMiddleware
 from telethon import TelegramClient
 from datetime import datetime, timedelta
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, BufferedInputFile
@@ -255,73 +256,104 @@ async def send_recommendations(message: types.Message):
         await message.reply("Извините, но мы не смогли найти подходящих рекомендаций для вас.")
     print("Time taken for sending message: %s seconds" % (time.time() - start_time)) # отладка
 
+
+# Словарь для отслеживания активных задач пользователей по генерации облака тегов
+# избегаем множественного запроса от пользователя и поломки бота
+user_tasks_cloud = {}
+
 # функция для генерации облака тегов по новостям из каналов пользователя
 async def send_tags_cloud(message: types.Message):
     user_id = str(message.from_user.id)
-    print(f'Запущена функция send_tags_cloud для user = {user_id}')
-    start_time = time.time() # отладка
-    # user_id = str(message.from_user.id)
-    await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
-    user_id = int(user_id)
 
-    print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time)) # отладка
-    start_time = time.time()  # Resetting start_time
+    # Проверяем, выполняется ли уже задача для этого пользователя
+    if user_tasks_cloud.get(user_id):
+        await message.answer("Пожалуйста, подождите, ваш предыдущий запрос еще обрабатывается.")
+        return
+
+    user_tasks_cloud[user_id] = True  # Установка флага задачи в True
 
     try:
-        img = generate_word_cloud_image('news.csv', user_id)
-        print("Time taken for generate_word_cloud_image: %s seconds" % (time.time() - start_time)) # отладка
-        start_time = time.time()  # Resetting start_time # отладка
+        print(f'Запущена функция send_tags_cloud для user = {user_id}') # отладка
+        start_time = time.time() # отладка
+        # user_id = str(message.from_user.id)
+        await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
+        user_id = int(user_id)
 
-        if img:
-            buffer = io.BytesIO(img.getvalue())  # Создайте буфер
-            buffer.seek(0)  # Переместите курсор обратно к началу файла
-            await bot.send_photo(chat_id=message.chat.id, photo=BufferedInputFile(buffer.read(), filename="cloud.png"), caption="Облако ключевых тем")
-        else:
-            await message.reply("Нет новостей за последние 24 часа.")
-        print("Time taken for sending message or image: %s seconds" % (time.time() - start_time))
-    except Exception as e:
-        await message.reply(f"Произошла ошибка: {str(e)}")
+        print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time)) # отладка
+        start_time = time.time()  # Resetting start_time
+
+        try:
+            img = generate_word_cloud_image('news.csv', user_id)
+            print("Time taken for generate_word_cloud_image: %s seconds" % (time.time() - start_time)) # отладка
+            start_time = time.time()  # Resetting start_time # отладка
+
+            if img:
+                buffer = io.BytesIO(img.getvalue())  # Создайте буфер
+                buffer.seek(0)  # Переместите курсор обратно к началу файла
+                await bot.send_photo(chat_id=message.chat.id, photo=BufferedInputFile(buffer.read(), filename="cloud.png"), caption="Облако ключевых тем")
+            else:
+                await message.reply("Нет новостей за последние 24 часа.")
+            print("Time taken for sending message or image: %s seconds" % (time.time() - start_time))
+        except Exception as e:
+            await message.reply(f"Произошла ошибка: {str(e)}")
+    finally:
+        user_tasks_cloud[str(user_id)] = False  # Установка флага задачи в False, даже если произошла ошибка
+
+# Словарь для отслеживания активных задач пользователей по саммаризации новостей
+# избегаем множественного запроса от пользователя и поломки бота
+user_tasks_summary = {}
 
 # функция отправки саммари новостей пользователю
-async def send_summary_to_user(message: types.Message):   
-    # Отправляем пользователю сообщение о том, что ему нужно подождать
-    # await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много.") 
-    await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много. \n"
-                        "Пока вы ждете, узнайте мудрость восходителей по кнопке \n'🏔️ Цитаты великих восходителей Эльбруса'")
-
+async def send_summary_to_user(message: types.Message):
     user_id = str(message.from_user.id) # Уникальный идентификатор пользователя
-    await update_news_csv(user_id, 3)  # Обновляем news.csv перед генерацией сводки по 3 каналам пользователя
+    if user_tasks_summary.get(user_id):
+        await message.answer("Пожалуйста, подождите, ваш предыдущий запрос еще обрабатывается.")
+        return
     
-    # После обновления news.csv генерируем сводку для всех новостей пользователя
-    summary_list = []  # Список для хранения саммари
+    try:
+        user_tasks_summary[user_id] = True  # Задача начата
 
-    with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
-        reader = csv.DictReader(csv_file)
-        for row in reader:
-            if row['user_id'] == str(user_id):  # Фильтрация по уникальному идентификатору пользователя
-                publication_text = row['publication_text']
-                publication_link = row['publication_link']
+        # Отправляем пользователю сообщение о том, что ему нужно подождать
+        # await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много.") 
+        await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много. \n"
+                            "Пока вы ждете, узнайте мудрость восходителей по кнопке \n'🏔️ Цитаты великих восходителей Эльбруса'")
 
-                # Запускаем блокирующую функцию в executor
-                summary = await loop.run_in_executor(None, generate_summary, publication_text)
-                # summary = generate_summary(publication_text)  # Генерация саммари
-
-                summary_with_link = f"{summary}\n[Link]({publication_link})" # Генерация саммари со ссылкой на источник
-                summary_list.append(summary_with_link)
-    if summary_list:
-        summary_text = "\n\n---\n\n".join(summary_list)
         
-        # Разбиваем длинное сообщение на части
-        for i in range(0, len(summary_text), 4096):
+        await update_news_csv(user_id, 3)  # Обновляем news.csv перед генерацией сводки по 3 каналам пользователя
+        
+        # После обновления news.csv генерируем сводку для всех новостей пользователя
+        summary_list = []  # Список для хранения саммари
+
+        with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
+            reader = csv.DictReader(csv_file)
+            for row in reader:
+                if row['user_id'] == str(user_id):  # Фильтрация по уникальному идентификатору пользователя
+                    publication_text = row['publication_text']
+                    publication_link = row['publication_link']
+
+                    # Запускаем блокирующую функцию в executor
+                    summary = await loop.run_in_executor(None, generate_summary, publication_text)
+                    # summary = generate_summary(publication_text)  # Генерация саммари
+
+                    summary_with_link = f"{summary}\n[Link]({publication_link})" # Генерация саммари со ссылкой на источник
+                    summary_list.append(summary_with_link)
+        if summary_list:
+            summary_text = "\n\n---\n\n".join(summary_list)
+            
+            # Разбиваем длинное сообщение на части
+            for i in range(0, len(summary_text), 4096):
+                await message.reply(
+                    summary_text[i:i+4096],
+                    parse_mode='Markdown'
+                )
+        else:
             await message.reply(
-                summary_text[i:i+4096],
+                "Нет новостей за последние 24 часа.",
                 parse_mode='Markdown'
             )
-    else:
-        await message.reply(
-            "Нет новостей за последние 24 часа.",
-            parse_mode='Markdown'
-        )
+    finally:
+        user_tasks_summary[user_id] = False  # Задача завершена
+
 
 async def start_client_and_polling():
     await client.start()
