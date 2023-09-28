@@ -17,11 +17,8 @@ tfidf_vectorizer = joblib.load('models/tfidf_vectorizer.pkl')
 
 def get_categories(user_id, news):
     predicted_channel_category = []
-    # user_id_to_select = str(user_id)
     user_id_to_select = user_id
-    # user_data = [row for row in news if row['user_id'] == user_id_to_select]
     user_data = news[news['user_id'] == user_id_to_select]
-    # user_data = news[news['user_id'] == user_id_to_select]  # news заменяем на наш файл с новостями
     user_data_grouped = user_data.groupby('channel_name')
     for channel_name, channel_data in user_data_grouped:
         channel_news_texts = channel_data['publication_text'].tolist()
@@ -62,11 +59,7 @@ def generate_recommendations(user_id, news_csv_path, category_to_channels):
         news = pd.read_csv(news_csv_path)
         assert isinstance(news, pd.DataFrame), "news is not a DataFrame"
         print(f"Time to read CSV: {time.time() - start_time} seconds")
-        # with open(news_csv_path, 'r', encoding='utf-8') as csv_file:
-        #     reader = csv.DictReader(csv_file)
-        #     for row in reader:
-        #         if row['user_id'] == user_id:
-        #             news.append(row)
+    
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return []

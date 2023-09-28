@@ -50,7 +50,7 @@ async def handle_message(message: types.Message):
         await send_tags_cloud(message)
     elif message.text == "📚 Мои источники":
         await send_user_channels(message)
-    elif message.text.startswith("удалить "):
+    elif message.text.lower().startswith("удалить "):
         await remove_channel_by_number(message)
     elif message.text == "🏔️ Цитаты великих восходителей Эльбруса":
         await send_quote(message)
@@ -98,7 +98,9 @@ async def send_user_channels(message: types.Message):
 # функция для удаления выбранных пользователем каналов из базы
 async def remove_channel_by_number(message: types.Message):
     user_id = str(message.from_user.id)
-    channel_numbers_str = message.text.replace("удалить ", "")  # Удаляем "удалить " из строки
+    message_text_lower = message.text.lower()
+    # проверка будет работать для "удалить", "Удалить", "УДАЛИТЬ" и т.д.
+    channel_numbers_str = message_text_lower.replace("удалить ", "") # Удаляем "удалить " из строки
     
     with open(USERS_AND_LINKS_DB, 'r') as f:
         data = json.load(f)
@@ -217,11 +219,6 @@ async def update_news_csv(user_id, N_channels=5):
     else:
         # Если файла не существует, то просто создаем пустой список
         remaining_news = []
-        # # и создаем файл с заголовками
-        # with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
-        #     fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
-        #     writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        #     writer.writeheader()  # Создание файла с заголовками, если файла не существует
 
     # Запись обновленных данных обратно в файл
     with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
@@ -288,9 +285,9 @@ async def send_tags_cloud(message: types.Message):
 # функция отправки саммари новостей пользователю
 async def send_summary_to_user(message: types.Message):   
     # Отправляем пользователю сообщение о том, что ему нужно подождать
-    await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много.") 
-    # await message.reply("Пожалуйста, подождите, это может занять некоторое время, если новостей в каналах и самих каналов много. \n" # не работает
-    #                     "Пока вы ждете, узнайте мудрость восходителей по кнопке \n'🏔️ Цитаты великих восходителей Эльбруса'")
+    # await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много.") 
+    await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много. \n"
+                        "Пока вы ждете, узнайте мудрость восходителей по кнопке \n'🏔️ Цитаты великих восходителей Эльбруса'")
 
     user_id = str(message.from_user.id) # Уникальный идентификатор пользователя
     await update_news_csv(user_id, 3)  # Обновляем news.csv перед генерацией сводки по 3 каналам пользователя
@@ -307,7 +304,6 @@ async def send_summary_to_user(message: types.Message):
 
                 # Запускаем блокирующую функцию в executor
                 summary = await loop.run_in_executor(None, generate_summary, publication_text)
-
                 # summary = generate_summary(publication_text)  # Генерация саммари
 
                 summary_with_link = f"{summary}\n[Link]({publication_link})" # Генерация саммари со ссылкой на источник
