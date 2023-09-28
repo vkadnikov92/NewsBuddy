@@ -1,5 +1,8 @@
 config.py
-
+old/
+user_channels.json
+news.csv
+anon.session
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
