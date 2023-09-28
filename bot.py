@@ -174,21 +174,25 @@ async def save_news(client, user_id, N_channels=3, news_limit_per_channel=10):
     with open('user_channels.json', 'r') as f:
         user_channels = json.load(f).get(str(user_id), [])[-N_channels:]
     
+    current_datetime = datetime.now()  # Текущая дата и время
     new_rows = []
     for channel_link in user_channels:
         entity = await client.get_entity(channel_link)
         async for msg in client.iter_messages(entity, limit=news_limit_per_channel):
             msg_date = msg.date.replace(tzinfo=None)
-            last_news_link = f"https://t.me/{channel_link.split('/')[-1]}/{msg.id}"
-            publication_text = msg.text.strip() if msg.text else ""
-            if publication_text:
-                new_rows.append({
-                    'user_id': user_id,
-                    'channel_name': channel_link,
-                    'publication_text': publication_text,
-                    'publication_link': last_news_link,
-                    'publication_date': msg_date.strftime('%Y-%m-%d %H:%M:%S')
-                })
+            
+            # Проверка, что новость была опубликована в течение последних 24 часов
+            if current_datetime - msg_date <= timedelta(hours=24):
+                last_news_link = f"https://t.me/{channel_link.split('/')[-1]}/{msg.id}"
+                publication_text = msg.text.strip() if msg.text else ""
+                if publication_text:
+                    new_rows.append({
+                        'user_id': user_id,
+                        'channel_name': channel_link,
+                        'publication_text': publication_text,
+                        'publication_link': last_news_link,
+                        'publication_date': msg_date.strftime('%Y-%m-%d %H:%M:%S')
+                    })
     
     with open('news.csv', 'a', newline='', encoding='utf-8') as csv_file:
         fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
@@ -208,31 +212,33 @@ async def update_news_csv(user_id, N_channels=5):
         # Если файл существует, удаляем старые новости пользователя
         with open('news.csv', 'r', newline='', encoding='utf-8') as csv_file:
             reader = csv.DictReader(csv_file)
-            remaining_news = [row for row in reader if row['user_id'] != str(user_id)]
+            # remaining_news = [row for row in reader if row['user_id'] != str(user_id)]
+            remaining_news = [row for row in reader if 'user_id' in row and row['user_id'] != str(user_id)]
     else:
         # Если файла не существует, то просто создаем пустой список
         remaining_news = []
-        # и создаем файл с заголовками
-        with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
-            fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            writer.writeheader()  # Создание файла с заголовками, если файла не существует
+        # # и создаем файл с заголовками
+        # with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
+        #     fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
+        #     writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        #     writer.writeheader()  # Создание файла с заголовками, если файла не существует
 
     # Запись обновленных данных обратно в файл
     with open('news.csv', 'w', newline='', encoding='utf-8') as csv_file:
         fieldnames = ['user_id', 'channel_name', 'publication_text', 'publication_link', 'publication_date']
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        if not remaining_news:  # Если список пуст, то записываем заголовки
-            writer.writeheader()
-        writer.writerows(remaining_news)
+        writer.writeheader()  # Всегда записываем заголовки
+        if remaining_news:  # Если список пуст, то записываем заголовки
+            writer.writerows(remaining_news)
     
     await save_news(client, user_id, N_channels=N_channels)
     print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time))
 
 # функция для отправки рекомендация каналов пользователю на основании темактик присланных им каналов
 async def send_recommendations(message: types.Message):
-    start_time = time.time() # отладка
     user_id = str(message.from_user.id)
+    print(f'Запущена функция send_recommendations для user = {user_id}')
+    start_time = time.time() # отладка
     await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
     user_id = int(user_id)
     print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time)) # отладка
@@ -254,10 +260,13 @@ async def send_recommendations(message: types.Message):
 
 # функция для генерации облака тегов по новостям из каналов пользователя
 async def send_tags_cloud(message: types.Message):
-    start_time = time.time() # отладка
     user_id = str(message.from_user.id)
+    print(f'Запущена функция send_tags_cloud для user = {user_id}')
+    start_time = time.time() # отладка
+    # user_id = str(message.from_user.id)
     await update_news_csv(user_id, 5)  # Обновляем news.csv перед генерацией облака тегов по 5 каналам пользователя
-    
+    user_id = int(user_id)
+
     print("Time taken for update_news_csv: %s seconds" % (time.time() - start_time)) # отладка
     start_time = time.time()  # Resetting start_time
 
@@ -279,6 +288,7 @@ async def send_tags_cloud(message: types.Message):
 # функция отправки саммари новостей пользователю
 async def send_summary_to_user(message: types.Message):   
     # Отправляем пользователю сообщение о том, что ему нужно подождать
+    await message.reply("Пожалуйста, подождите, это может занять 1-2 мин, если новостей в каналах и самих каналов много.") 
     # await message.reply("Пожалуйста, подождите, это может занять некоторое время, если новостей в каналах и самих каналов много. \n" # не работает
     #                     "Пока вы ждете, узнайте мудрость восходителей по кнопке \n'🏔️ Цитаты великих восходителей Эльбруса'")
 

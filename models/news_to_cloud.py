@@ -50,7 +50,7 @@ def get_news(csv_file, user_id):
             # Проходимся по строкам CSV файла
             for row in reader:
                 # Проверяем, соответствует ли user_id текущей строке
-                if row['user_id'] == user_id:
+                if row['user_id'] == str(user_id):
                     # Получаем дату и время публикации из строки и преобразуем их в объект datetime
                     publication_date = datetime.strptime(row['publication_date'], '%Y-%m-%d %H:%M:%S')
                     
