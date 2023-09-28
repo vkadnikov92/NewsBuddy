@@ -3,6 +3,11 @@ old/
 user_channels.json
 news.csv
 anon.session
+anon.session-journal
+anon.session*
+.DS_Store
+
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

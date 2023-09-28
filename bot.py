@@ -79,7 +79,7 @@ async def send_welcome(message: types.Message):
 # функция для отправки смешной цитаты преподавателей
 async def send_quote(message: types.Message):
     quote = random.choice(QUOTES)
-    await message.reply(quote)
+    await message.reply(quote, parse_mode='Markdown')
 
 
 # функция для отправки пользователю перечень его сохраненных каналов
@@ -180,7 +180,7 @@ async def save_news(client, user_id, N_channels=3, news_limit_per_channel=10):
         entity = await client.get_entity(channel_link)
         async for msg in client.iter_messages(entity, limit=news_limit_per_channel):
             msg_date = msg.date.replace(tzinfo=None)
-            
+
             # Проверка, что новость была опубликована в течение последних 24 часов
             if current_datetime - msg_date <= timedelta(hours=24):
                 last_news_link = f"https://t.me/{channel_link.split('/')[-1]}/{msg.id}"
@@ -304,7 +304,12 @@ async def send_summary_to_user(message: types.Message):
             if row['user_id'] == str(user_id):  # Фильтрация по уникальному идентификатору пользователя
                 publication_text = row['publication_text']
                 publication_link = row['publication_link']
-                summary = generate_summary(publication_text)  # Генерация саммари
+
+                # Запускаем блокирующую функцию в executor
+                summary = await loop.run_in_executor(None, generate_summary, publication_text)
+
+                # summary = generate_summary(publication_text)  # Генерация саммари
+
                 summary_with_link = f"{summary}\n[Link]({publication_link})" # Генерация саммари со ссылкой на источник
                 summary_list.append(summary_with_link)
     if summary_list:
