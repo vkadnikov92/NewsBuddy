@@ -319,7 +319,7 @@ async def send_summary_to_user(message: types.Message):
             )
     else:
         await message.reply(
-            "Нет новостей за вчерашний день.",
+            "Нет новостей за последние 24 часа.",
             parse_mode='Markdown'
         )
 

@@ -1,5 +1,6 @@
 config.py
 old/
+presentation/
 user_channels.json
 news.csv
 anon.session
