@@ -37,5 +37,5 @@ NewsBuddy - это бот, который помогает вам быть в к
 ![image](https://github.com/vkadnikov92/NewsBuddy/assets/115892397/a4e381a0-970a-4189-9557-ec28031c8fef)
 # Команда проекта
 1. [Владимир Кадников](https://github.com/vkadnikov92)
-2. [Григорий сам заполнит свою фамилию я в душе не ебу как ее писать](https://github.com/Rzhischev)
+2. [Григорий Ржищев](https://github.com/Rzhischev)
 3. [Владислав Филиппов](https://github.com/Vlad1slawoo)
