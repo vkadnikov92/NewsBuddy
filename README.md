@@ -1,4 +1,4 @@
-# NewsBuddy
+# 🤖NewsBuddy
 
 <p align="center">
   <img src="img/main.png" width="400">
@@ -19,27 +19,39 @@
 А ещё, **NewsBuddy** может провести морфологический анализ публикаций из интересных вам телеграм-каналов и создать **облако слов**.
 ![image](img/cloud.png)
 
+Бот доступен по ссылке: https://t.me/TinyNewsBot
 
-# Команда проекта
+
+# 🦸‍♂️Команда проекта
 1. [Владимир Кадников](https://github.com/vkadnikov92)
 2. [Григорий Ржищев](https://github.com/Rzhischev)
 3. [Владислав Филиппов](https://github.com/Vlad1slawoo)
    
-# Библиотеки
+# 📚Библиотеки
 ```typescript
 import os
+import re
 import io
 import csv
 import time
+import nltk
 import json
+import torch
+import joblib
 import random
 import asyncio
-from aiogram import Bot, Dispatcher, types
+import pandas as pd
+from pymystem3 import Mystem
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 from telethon import TelegramClient
 from datetime import datetime, timedelta
+from aiogram import Bot, Dispatcher, types
 from aiogram.types import BufferedInputFile
+from sklearn.feature_extraction.text import TfidfVectorizer
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 ```
-# Установка 
+# 📄Установка 
 1. Перейдите в директорию в которой хотите хранить репозиторий с ботом
 2. Клониройте репозиторий на ваш пк(git clone git@github.com:vkadnikov92/NewsBuddy.git)
 # Запуск 
@@ -56,7 +68,7 @@ from aiogram.types import BufferedInputFile
 3. Генерировать облако слов по вашим источникам
 4. Читать цитаты лучших из Elbrus Bootcamp
 
-# Стек
+# ⚙️Стек
 ![aiogram](https://img.shields.io/badge/aiogram-Used-blue)
 ![pytorch](https://img.shields.io/badge/pytorch-Used-yellow)
 ![telethon](https://img.shields.io/badge/telethon-Used-green)
