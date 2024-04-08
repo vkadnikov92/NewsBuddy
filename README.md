@@ -66,7 +66,6 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 1. Заправшивать у него саммари телеграм-каналов, которые вы ему отправили
 2. Получать рекомендации по каналам в зависимости от ваших интересов
 3. Генерировать облако слов по вашим источникам
-4. Читать цитаты лучших из Elbrus Bootcamp
 
 # ⚙️Стек
 ![aiogram](https://img.shields.io/badge/aiogram-Used-blue)
